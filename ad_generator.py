@@ -52,10 +52,39 @@ class AdDatastore:
         self.load_data(dataset_path)
     
     def load_data(self, dataset_path):
-        """Load data from parquet file"""
+        """Load data from parquet file or download from Google Drive"""
         try:
-            self.data = pd.read_parquet(dataset_path)
-            st.success(f"Successfully loaded dataset with {len(self.data)} examples!")
+            # Check if the file exists locally
+            if os.path.exists(dataset_path):
+                self.data = pd.read_parquet(dataset_path)
+                st.success(f"Successfully loaded local dataset with {len(self.data)} examples!")
+            else:
+                # If not available locally, check if it's a Google Drive URL
+                if dataset_path and (dataset_path.startswith('https://drive.google.com') or 
+                                   dataset_path.startswith('https://docs.google.com')):
+                    st.info("Downloading dataset from Google Drive. This may take a moment...")
+                    
+                    # Extract the file ID from the URL
+                    file_id = self.extract_file_id_from_url(dataset_path)
+                    
+                    if file_id:
+                        # Define a local path to save the downloaded file
+                        local_path = "downloaded_dataset.parquet"
+                        
+                        # Download the file from Google Drive
+                        self.download_file_from_gdrive(file_id, local_path)
+                        
+                        # Load the downloaded parquet file
+                        if os.path.exists(local_path):
+                            self.data = pd.read_parquet(local_path)
+                            st.success(f"Successfully loaded dataset from Google Drive with {len(self.data)} examples!")
+                        else:
+                            raise Exception("Failed to download the dataset from Google Drive.")
+                    else:
+                        raise Exception("Invalid Google Drive URL. Could not extract file ID.")
+                else:
+                    raise Exception(f"Dataset file not found: {dataset_path}")
+                    
         except Exception as e:
             st.error(f"Error loading dataset: {str(e)}")
             # Create a simple dummy dataset as fallback
@@ -70,18 +99,53 @@ class AdDatastore:
             })
             st.info("Using fallback dataset for examples.")
     
-    def get_similar_ads(self, product_type: str, audience: str, tone: str, num_samples: int = 3) -> List[Dict]:
-        """Retrieve relevant examples from dataset"""
-        if self.data is None or len(self.data) == 0:
-            return []
+    def extract_file_id_from_url(self, url):
+        """Extract the file ID from a Google Drive URL"""
+        # For URLs like: https://drive.google.com/file/d/FILE_ID/view
+        if "/file/d/" in url:
+            start_index = url.find("/file/d/") + 8
+            end_index = url.find("/", start_index)
+            return url[start_index:end_index]
+            
+        # For URLs like: https://drive.google.com/open?id=FILE_ID
+        elif "open?id=" in url:
+            return url.split("open?id=")[1].split("&")[0]
+            
+        # For URLs like: https://docs.google.com/uc?export=download&id=FILE_ID
+        elif "uc?export=download" in url and "id=" in url:
+            params = url.split("?")[1].split("&")
+            for param in params:
+                if param.startswith("id="):
+                    return param[3:]
+                    
+        return None
+    
+    def download_file_from_gdrive(self, file_id, destination):
+        """Download a file from Google Drive using the direct download URL format"""
+        import requests
         
-        # In a real implementation, we would use embeddings for semantic similarity
-        # For simplicity, just return random samples
-        if len(self.data) > num_samples:
-            return self.data.sample(num_samples).to_dict('records')
-        else:
-            return self.data.to_dict('records')
-
+        # Direct download URL format
+        url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        
+        # For large files, we need to handle the confirmation page
+        session = requests.Session()
+        response = session.get(url, stream=True)
+        
+        # Check if we're being redirected to the warning/confirmation page
+        for key, value in response.cookies.items():
+            if key.startswith('download_warning'):
+                # Add the confirm parameter to bypass the warning
+                url = f"{url}&confirm={value}"
+                break
+                
+        # Download the file
+        response = session.get(url, stream=True)
+        
+        # Save the file
+        with open(destination, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
 
 class AdImageGenerator:
     """Handles generation of ad images using Stability AI"""
