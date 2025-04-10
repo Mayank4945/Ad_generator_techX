@@ -37,12 +37,11 @@ h1 {
 
 # ======= CONFIGURATION - REPLACE THESE VALUES =======
 # Add your Gemini API key here
-GEMINI_API_KEY = "AIzaSyBWJGc8cNmhBUXhNUoaTjplh-ufuyrHbm8"
+GEMINI_API_KEY = "YOUR-GEMINI-KEY"
 # Add your Stability API key here
-STABILITY_API_KEY = "sk-QZC61Heb3oIYhPmaQoCwFIXkl9MItBaGvAzso3fKRt3An1ui"
+STABILITY_API_KEY = "YOUR-STABILITY-KEY"
 # Add your dataset path here
 DATASET_PATH = "train-00000-of-00002-6e587552aa3c8ac8.parquet"
-# DATASET_PATH = os.path.join(os.path.dirname(__file__), "train-00000-of-00002-6e587552aa3c8ac8.parquet")
 # ===================================================
 
 class AdDatastore:
